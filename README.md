@@ -186,3 +186,186 @@ nest generate controller features/user
 ```
 
 Perintah di atas akan membuat controller di folder `src/features/user/`
+
+# HTTP Request dalam NestJS
+
+Saat membuat routing, biasanya kita ingin mendapatkan informasi yang dikirim oleh client melalui HTTP Request, baik itu berupa Query parameter, Headers, request body, dan lain-lain.
+
+## Request Decorators
+
+Beberapa decorator yang bisa digunakan untuk mengakses data request:
+
+- `@Req()` - untuk mengakses `express.Request` object
+- `@Param(key?)` - untuk mengakses route parameters (`req.params`)
+- `@Body(key?)` - untuk mengakses request body (`req.body`)
+- `@Query(key?)` - untuk mengakses query parameters (`req.query`)
+- `@Header(key?)` - untuk mengakses request headers (`req.headers`)
+- `@Ip()` - untuk mengakses client IP address (`req.ip`)
+- `@HostParam()` - untuk mengakses host parameters
+
+## Contoh Penggunaan Decorators
+
+### 1. `@Req()` - Express Request Object
+
+```typescript
+import { Controller, Get, Req } from '@nestjs/common';
+import { Request } from 'express';
+
+@Controller('api/user')
+export class UserController {
+  @Get(':id')
+  get(@Req() request: Request): string {
+    return `Halo selamat datang ${request.params.id}`;
+  }
+}
+```
+
+**Note:** Cara ini bisa digunakan tapi tidak direkomendasikan. Lebih baik menggunakan decorator khusus.
+
+### 2. `@Param(key?)` - Route Parameters
+
+```typescript
+import { Controller, Get, Param } from '@nestjs/common';
+
+@Controller('api/user')
+export class UserController {
+  @Get(':id')
+  get(@Param('id') id: string): string {
+    return `Halo selamat datang ${id}`;
+  }
+}
+```
+
+**Testing:** Buka http://localhost:3000/api/user/input_bebas
+
+### 3. `@Body(key?)` - Request Body
+
+```typescript
+import { Controller, Post, Body } from '@nestjs/common';
+
+@Controller('api/user')
+export class UserController {
+  @Post()
+  create(@Body() body: any): string {
+    return `Halo ${body.name}, umur kamu ${body.age} tahun`;
+  }
+}
+```
+
+**Testing:**
+
+- Method: POST
+- URL: http://localhost:3000/api/user
+- Body (JSON):
+
+```json
+{
+  "name": "John",
+  "age": 25
+}
+```
+
+### 4. `@Query(key?)` - Query Parameters
+
+```typescript
+import { Controller, Get, Query } from '@nestjs/common';
+
+@Controller('api/user')
+export class UserController {
+  @Get()
+  find(@Query('name') name: string, @Query('age') age: string): string {
+    return `Halo ${name}, umur kamu ${age} tahun`;
+  }
+}
+```
+
+**Testing:**
+
+- Method: GET
+- URL: http://localhost:3000/api/user?name=tes&age=20
+
+### 5. `@Headers(key?)` - Request Headers
+
+```typescript
+import { Controller, Get, Headers } from '@nestjs/common';
+
+@Controller('api/user')
+export class UserController {
+  @Get('check-header')
+  checkHeader(@Headers('user-agent') userAgent: string): string {
+    return `User Agent kamu: ${userAgent}`;
+  }
+}
+```
+
+**Testing:**
+
+- Method: GET
+- URL: http://localhost:3000/api/user/check-header
+
+### 6. `@Ip()` - Client IP Address
+
+```typescript
+import { Controller, Get, Ip } from '@nestjs/common';
+
+@Controller('api/user')
+export class UserController {
+  @Get('ip')
+  getIp(@Ip() ip: string): string {
+    return `IP kamu adalah ${ip}`;
+  }
+}
+```
+
+**Testing:**
+
+- Method: GET
+- URL: http://localhost:3000/api/user/ip
+
+### 7. `@HostParam()` - Host Parameters
+
+```typescript
+import { Controller, Get, HostParam } from '@nestjs/common';
+
+@Controller({ host: ':subdomain.example.com' })
+export class UserController {
+  @Get()
+  getInfo(@HostParam('subdomain') subdomain: string): string {
+    return `Subdomain kamu: ${subdomain}`;
+  }
+}
+```
+
+**Testing:**
+
+- URL: http://api.example.com:3000/
+
+## Best Practices
+
+1. **Gunakan decorator khusus** daripada `@Req()` untuk kode yang lebih bersih
+2. **Validasi data** yang masuk menggunakan DTO (Data Transfer Objects)
+3. **Gunakan type safety** dengan mendefinisikan interface untuk request data
+4. **Error handling** yang baik untuk menangani input yang tidak valid
+
+## Contoh dengan Validasi DTO
+
+```typescript
+import { Controller, Post, Body } from '@nestjs/common';
+import { IsString, IsInt } from 'class-validator';
+
+class CreateUserDto {
+  @IsString()
+  name: string;
+
+  @IsInt()
+  age: number;
+}
+
+@Controller('api/user')
+export class UserController {
+  @Post()
+  create(@Body() createUserDto: CreateUserDto): string {
+    return `Halo ${createUserDto.name}, umur kamu ${createUserDto.age} tahun`;
+  }
+}
+```
