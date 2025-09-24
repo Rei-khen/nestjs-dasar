@@ -369,3 +369,166 @@ export class UserController {
   }
 }
 ```
+
+## HTTP Response di NestJS
+
+Di NestJS, ada dua cara utama untuk menangani HTTP Response:
+
+1.  **Cara Standar (Direkomendasikan)**: Secara default, apa pun yang Anda `return` dari sebuah _method_ di _controller_ akan secara otomatis menjadi _body_ dari HTTP Response. NestJS akan menangani proses serialisasi (mengubah objek/array menjadi JSON) dan mengirimkan response dengan status code yang sesuai (misalnya, `200 OK` untuk GET atau `201 Created` untuk POST).
+
+2.  **Menggunakan Objek Response Bawaan (Library-specific)**: Anda bisa menyuntikkan (_inject_) objek response dari _framework_ yang digunakan (misalnya Express) dengan menggunakan decorator `@Res()`. Cara ini memberikan Anda kontrol penuh atas response, seperti mengatur cookies, header, dan status code secara manual.
+
+**⚠️ Peringatan:** Ketika Anda menggunakan `@Res()`, NestJS akan menonaktifkan mekanisme response standarnya untuk _route_ tersebut. Ini berarti Anda **harus** mengelola response sepenuhnya secara manual. Jika tidak, _request_ akan _hang_ (tidak selesai).
+
+### Contoh Penggunaan `@Res()`
+
+Dengan decorator `@Res()`, Anda bisa memanggil method-method native dari Express, seperti `res.status()` dan `res.json()`.
+
+```typescript
+import { Controller, Get, Res } from '@nestjs/common';
+import { Response } from 'express';
+
+@Controller('users')
+export class UserController {
+  @Get('profile')
+  getProfile(@Res() res: Response) {
+    // Anda punya kontrol penuh di sini
+    res.status(200).json({
+      code: 200,
+      status: 'success',
+      data: {
+        nama: 'John Doe',
+        age: 25,
+      },
+    });
+  }
+}
+```
+
+---
+
+## Response Decorator
+
+Untuk memodifikasi response tanpa harus mengambil alih sepenuhnya menggunakan `@Res()`, NestJS menyediakan beberapa decorator yang sangat berguna. Ini adalah cara yang lebih dianjurkan karena tetap menjaga kompatibilitas dengan fitur NestJS lainnya (seperti Interceptors dan `class-transformer`).
+
+### 1\. `@HttpCode(code)`
+
+Decorator ini digunakan untuk mengubah **status code** default dari sebuah response.
+
+**Contoh:** Secara default, method `POST` akan mengembalikan status `201 Created`. Kita bisa mengubahnya menjadi `200 OK`.
+
+```typescript
+import { Controller, Post, HttpCode } from '@nestjs/common';
+
+@Controller('orders')
+export class OrderController {
+  @Post()
+  @HttpCode(200) // Mengubah status code dari 201 menjadi 200
+  createOrder(): object {
+    return {
+      message: 'Order received successfully, processing now.',
+    };
+  }
+}
+```
+
+**Hasil:** Saat endpoint ini diakses dengan method POST, response yang diterima akan memiliki status code `200 OK`.
+
+### 2\. `@Header(key, value)`
+
+Decorator ini digunakan untuk menambahkan atau mengubah **response header**.
+
+**Contoh:** Menambahkan header kustom `X-Powered-By` pada response.
+
+```typescript
+import { Controller, Get, Header } from '@nestjs/common';
+
+@Controller('reports')
+export class ReportController {
+  @Get('download')
+  @Header('Content-Type', 'application/pdf')
+  @Header('X-Powered-By', 'MyAwesomeApp')
+  downloadReport(): object {
+    return {
+      message: 'Report is being generated...',
+      url: '/files/report-2025.pdf',
+    };
+  }
+}
+```
+
+**Hasil:** Response dari endpoint ini akan menyertakan header `Content-Type: application/pdf` dan `X-Powered-By: MyAwesomeApp`.
+
+### 3\. `@Redirect(url, statusCode)`
+
+Decorator ini digunakan untuk melakukan **redirect** ke URL lain. Secara default, status code-nya adalah `302 Found`.
+
+#### a. Redirect Statis
+
+Redirect ke alamat yang sudah pasti.
+
+```typescript
+import { Controller, Get, Redirect } from '@nestjs/common';
+
+@Controller('docs')
+export class DocsController {
+  @Get()
+  @Redirect('https://docs.nestjs.com', 301) // Redirect permanen
+  getDocs() {
+    // Method ini tidak perlu return apa-apa
+  }
+}
+```
+
+**Hasil:** Mengakses `http://localhost:3000/docs` akan langsung mengarahkan pengguna ke `https://docs.nestjs.com` dengan status `301 Moved Permanently`.
+
+#### b. Redirect Dinamis
+
+Anda bisa menentukan URL redirect secara dinamis dengan me-`return` sebuah objek dengan properti `url` dan `statusCode` (opsional).
+
+```typescript
+import { Controller, Get, Query, Redirect } from '@nestjs/common';
+
+@Controller('search')
+export class SearchController {
+  @Get()
+  @Redirect() // URL tidak didefinisikan di sini
+  search(@Query('q') query: string) {
+    if (query?.toLowerCase() === 'nestjs') {
+      return {
+        url: 'https://nestjs.com', // Redirect ke sini
+      };
+    }
+    return {
+      url: `https://www.google.com/search?q=${query}`, // Redirect ke Google
+      statusCode: 302,
+    };
+  }
+}
+```
+
+**Hasil:**
+
+- Mengakses `/search?q=nestjs` akan redirect ke `https://nestjs.com`.
+- Mengakses `/search?q=typescript` akan redirect ke `https://www.google.com/search?q=typescript`.
+
+### 4\. `@Next()`
+
+Decorator ini digunakan untuk menyuntikkan fungsi `next()` dari Express. Ini umumnya digunakan dalam skenario yang lebih kompleks, seperti saat membuat middleware secara manual, untuk meneruskan kontrol ke _handler_ berikutnya dalam rantai request.
+
+**Catatan:** Penggunaan `@Next()` jarang dibutuhkan dalam aplikasi standar dan lebih sering ditemukan saat integrasi dengan pustaka berbasis Express.
+
+```typescript
+import { Controller, Get, Next, Req, Res } from '@nestjs/common';
+import { Request, Response, NextFunction } from 'express';
+
+@Controller('legacy')
+export class LegacyController {
+  @Get('*')
+  handleLegacy(@Next() next: NextFunction) {
+    console.log('Middleware logic running before passing to next handler...');
+    // Teruskan kontrol ke handler/middleware berikutnya
+    next();
+  }
+}
+```
