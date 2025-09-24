@@ -532,3 +532,101 @@ export class LegacyController {
   }
 }
 ```
+
+Tentu, ini adalah bagian dokumentasi yang telah diformat dengan baik mengenai penggunaan Cookie di NestJS.
+
+---
+
+## Bekerja dengan Cookie
+
+Secara default, NestJS (yang berjalan di atas Express) tidak memiliki dukungan bawaan untuk mem-parsing _cookie_. Oleh karena itu, kita perlu menggunakan _middleware_ tambahan, seperti `cookie-parser`, untuk membaca dan menulis cookie dengan mudah.
+
+### 1\. Instalasi
+
+Pertama, kita perlu menginstal `cookie-parser` dan tipe TypeScript-nya.
+
+```bash
+# Instal library utama
+npm install cookie-parser
+
+# Instal tipe untuk dukungan TypeScript (development dependency)
+npm install --save-dev @types/cookie-parser
+```
+
+### 2\. Konfigurasi di `main.ts`
+
+Setelah instalasi selesai, kita harus mendaftarkan `cookie-parser` sebagai _middleware_ global di aplikasi NestJS kita. Ini dilakukan di dalam file `src/main.ts`.
+
+```typescript
+// src/main.ts
+
+import { NestFactory } from '@nestjs/core';
+import { AppModule } from './app.module';
+import * as cookieParser from 'cookie-parser';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+
+  // Daftarkan cookie-parser sebagai middleware
+  // 'secret key' digunakan untuk menandatangani (sign) cookie, membuatnya lebih aman.
+  app.use(cookieParser('RAHASIA'));
+
+  await app.listen(process.env.PORT ?? 3000);
+}
+bootstrap();
+```
+
+### 3\. Contoh Penggunaan di Controller
+
+Setelah middleware terpasang, Anda bisa mulai mengatur dan membaca cookie di dalam _controller_.
+
+```typescript
+import { Controller, Get, Query, Req, Res } from '@nestjs/common';
+import type { Request, Response } from 'express';
+
+@Controller('cookie-user')
+export class CookieUserController {
+  /**
+   * Method untuk mengatur (set) cookie.
+   * Menggunakan @Res() untuk mendapatkan akses ke objek response Express.
+   */
+  @Get('/set-cookie')
+  setCookie(
+    @Query('nama') nama: string,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    res.cookie('nama', nama, {
+      httpOnly: true, // Cookie tidak bisa diakses via JavaScript client-side
+      signed: true, // Cookie akan ditandatangani dengan secret key
+    });
+    return { message: 'Berhasil membuat cookie' };
+  }
+
+  /**
+   * Method untuk membaca (get) cookie.
+   * Menggunakan @Req() untuk mendapatkan akses ke objek request Express.
+   * Cookie yang sudah di-parsing akan tersedia di req.cookies atau req.signedCookies.
+   */
+  @Get('/get-cookie')
+  getCookie(@Req() req: Request) {
+    // Jika cookie ditandatangani (signed), gunakan req.signedCookies
+    const namaFromCookie = req.signedCookies.nama;
+
+    if (namaFromCookie) {
+      return `Halo, nama kamu dari cookie adalah: ${namaFromCookie}`;
+    } else {
+      return 'Cookie tidak ditemukan atau tidak valid.';
+    }
+  }
+}
+```
+
+#### **Cara Menggunakannya:**
+
+1.  **Atur Cookie**: Buka browser atau gunakan Postman untuk mengakses URL:
+    `http://localhost:3000/cookie-user/set-cookie?nama=Budi`
+    Ini akan menyimpan cookie bernama `nama` dengan value `Budi` di browser Anda.
+
+2.  **Baca Cookie**: Setelah itu, akses URL:
+    `http://localhost:3000/cookie-user/get-cookie`
+    Anda akan mendapatkan response: `"Halo, nama kamu dari cookie adalah: Budi"`.
